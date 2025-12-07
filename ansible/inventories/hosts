@@ -1,0 +1,9 @@
+[controlador]
+localhost ansible_connection=local
+
+[webservers]
+192.168.56.20
+
+[todos:children]
+controlador
+webservers

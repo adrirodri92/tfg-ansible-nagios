@@ -1,0 +1,17 @@
+# Archivos de reintento de Ansible
+*.retry
+
+# Archivos temporales y logs
+*.log
+*.swp
+
+# Llaves SSH (¡Seguridad ante todo!)
+*.pem
+id_rsa
+id_rsa.pub
+
+# Configuración local de VS Code
+.vscode/
+
+# Archivos de sistema basura
+.DS_Store
