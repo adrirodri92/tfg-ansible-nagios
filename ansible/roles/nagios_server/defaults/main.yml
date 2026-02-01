@@ -1,0 +1,9 @@
+---
+# defaults file for nagios_server
+nagios_version: "4.5.0"
+nagios_user: "nagios"
+nagios_group: "nagios"
+nagios_cmdgroup: "nagcmd"
+# Contraseña para el acceso web (nagiosadmin).
+# En un entorno real usaríamos Ansible Vault.
+nagiosadmin_pass: "admin1234"

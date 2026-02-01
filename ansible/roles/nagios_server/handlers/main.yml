@@ -1,0 +1,12 @@
+---
+# handlers file for nagios_server
+
+- name: Reiniciar Apache
+  service:
+    name: apache2
+    state: restarted
+
+- name: Reiniciar Nagios     <-- ESTE ES EL QUE FALTA
+  service:
+    name: nagios
+    state: restarted

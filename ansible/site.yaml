@@ -1,0 +1,19 @@
+---
+# 1. Configuración Global (Aplica a todas las máquinas)
+- hosts: all
+  become: yes
+  roles:
+    - common  # Aquí meteremos herramientas básicas en el futuro
+
+# 2. Configuración del Servidor de Monitorización (Tu máquina .10)
+- hosts: controlador
+  become: yes
+  roles:
+    - nagios_server  # Aquí instalaremos Nagios Core (Bloque 3)
+
+# 3. Configuración de Servidores Web (Tu máquina .20)
+- hosts: webservers
+  become: yes
+  roles:
+    - apache_web    # Instala Apache (Lo que acabamos de mover)
+    - nrpe_client   # Instalará el agente de monitorización (Bloque 3)

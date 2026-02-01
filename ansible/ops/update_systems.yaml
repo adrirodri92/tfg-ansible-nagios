@@ -1,0 +1,35 @@
+---
+- name: Mantenimiento y Actualización de Sistemas
+  hosts: all
+  become: yes
+  serial: 1  # Actualiza una máquina a la vez para no tirar toda la red
+
+  tasks:
+    - name: 1. Actualizar caché de repositorios (apt update)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: 2. Actualizar todos los paquetes (apt upgrade)
+      apt:
+        upgrade: dist
+      register: upgrade_result
+
+    - name: 3. Comprobar si hay paquetes actualizados
+      debug:
+        msg: "Paquetes actualizados: {{ upgrade_result.stdout_lines | default('Ninguno') }}"
+
+    - name: 4. Limpiar dependencias no utilizadas (autoremove)
+      apt:
+        autoremove: yes
+        purge: yes
+
+    - name: 5. Verificar si es necesario reiniciar
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: 6. Mostrar aviso si hace falta reinicio
+      debug:
+        msg: "¡ATENCIÓN! El servidor {{ inventory_hostname }} requiere reinicio."
+      when: reboot_required.stat.exists

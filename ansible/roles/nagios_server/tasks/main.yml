@@ -1,0 +1,200 @@
+---
+# tasks file for nagios_server
+
+- name: 1. Instalar dependencias de compilación y sistema base
+  apt:
+    name:
+      - autoconf
+      - gcc
+      - libc6
+      - make
+      - wget
+      - unzip
+      - apache2
+      - apache2-utils
+      - php
+      - libapache2-mod-php
+      - libgd-dev
+      - libssl-dev
+    state: present
+    update_cache: yes
+
+- name: 2. Crear usuario y grupo para Nagios
+  user:
+    name: "{{ nagios_user }}"
+    system: yes
+    create_home: no
+
+- name: 3. Crear grupo para comandos externos (nagcmd)
+  group:
+    name: "{{ nagios_cmdgroup }}"
+    state: present
+
+- name: 4. Añadir usuario de Apache y Nagios al grupo de comandos
+  user:
+    name: "{{ item }}"
+    groups: "{{ nagios_cmdgroup }}"
+    append: yes
+  loop:
+    - "{{ nagios_user }}"
+    - "www-data"
+
+- name: 5. Descargar y descomprimir Nagios Core {{ nagios_version }}
+  unarchive:
+    src: "https://assets.nagios.com/downloads/nagioscore/releases/nagios-{{ nagios_version }}.tar.gz"
+    dest: "/tmp"
+    remote_src: yes
+
+- name: 6. Compilar Nagios (Configure)
+  command: ./configure --with-httpd-conf=/etc/apache2/sites-enabled
+  args:
+    chdir: "/tmp/nagios-{{ nagios_version }}"
+
+- name: 7. Compilar Nagios (Make All)
+  command: make all
+  args:
+    chdir: "/tmp/nagios-{{ nagios_version }}"
+
+- name: 8. Instalar Binarios y Servicios
+  shell: |
+    make install
+    make install-init
+    make install-commandmode
+  args:
+    chdir: "/tmp/nagios-{{ nagios_version }}"
+    creates: /usr/local/nagios/bin/nagios
+
+- name: 9. Instalar Archivos de Configuración de Ejemplo
+  command: make install-config
+  args:
+    chdir: "/tmp/nagios-{{ nagios_version }}"
+    creates: /usr/local/nagios/etc/nagios.cfg
+
+- name: 10. Instalar Configuración Web de Apache
+  command: make install-webconf
+  args:
+    chdir: "/tmp/nagios-{{ nagios_version }}"
+    creates: /etc/apache2/sites-enabled/nagios.conf
+
+- name: 11. Habilitar módulos de Apache (Rewrite y CGI)
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - rewrite
+    - cgi
+  notify: Reiniciar Apache
+
+- name: 12. Crear usuario 'nagiosadmin' para acceso Web
+  htpasswd:
+    path: /usr/local/nagios/etc/htpasswd.users
+    name: nagiosadmin
+    password: "{{ nagiosadmin_pass }}"
+    owner: "{{ nagios_user }}"
+    group: "{{ nagios_cmdgroup }}"
+    mode: 0640
+
+- name: 13. Asegurar que Nagios se inicia al arranque
+  service:
+    name: nagios
+    state: started
+    enabled: yes
+
+- name: 14. Instalar Plugin check_nrpe en el Servidor
+  apt:
+    name: nagios-nrpe-plugin
+    state: present
+
+- name: 15. Descargar Nagios Plugins 2.4.8
+  unarchive:
+    src: "https://github.com/nagios-plugins/nagios-plugins/releases/download/release-2.4.8/nagios-plugins-2.4.8.tar.gz"
+    dest: "/tmp"
+    remote_src: yes
+
+- name: 16. Compilar Nagios Plugins (Configure)
+  command: ./configure --with-nagios-user={{ nagios_user }} --with-nagios-group={{ nagios_group }}
+  args:
+    chdir: "/tmp/nagios-plugins-2.4.8"
+
+- name: 17. Compilar Nagios Plugins (Make)
+  command: make
+  args:
+    chdir: "/tmp/nagios-plugins-2.4.8"
+
+- name: 18. Instalar Nagios Plugins
+  command: make install
+  args:
+    chdir: "/tmp/nagios-plugins-2.4.8"
+    creates: /usr/local/nagios/libexec/check_ping
+
+- name: 19. Enlazar plugin check_nrpe (Corrección de ruta)
+  # El plugin NRPE se instaló via apt en /usr/lib/..., pero Nagios busca en /usr/local/...
+  file:
+    src: /usr/lib/nagios/plugins/check_nrpe
+    dest: /usr/local/nagios/libexec/check_nrpe
+    state: link
+- name: 20. Habilitar directorio de servidores en nagios.cfg
+  lineinfile:
+    path: /usr/local/nagios/etc/nagios.cfg
+    regexp: '^#cfg_dir=/usr/local/nagios/etc/servers'
+    line: 'cfg_dir=/usr/local/nagios/etc/servers'
+    state: present
+  tags: config
+
+- name: 21. Crear directorio para configuraciones de servidores
+  file:
+    path: /usr/local/nagios/etc/servers
+    state: directory
+    owner: "{{ nagios_user }}"
+    group: "{{ nagios_group }}"
+    mode: '0775'
+  tags: config
+
+- name: 22. Definir el comando check_nrpe en Nagios
+  blockinfile:
+    path: /usr/local/nagios/etc/objects/commands.cfg
+    block: |
+      define command {
+          command_name    check_nrpe
+          command_line    $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
+      }
+  tags: config
+
+- name: 23. Crear configuración del Host Web (host-web.cfg)
+  copy:
+    dest: /usr/local/nagios/etc/servers/host-web.cfg
+    owner: "{{ nagios_user }}"
+    group: "{{ nagios_group }}"
+    content: |
+      define host {
+          use                     linux-server
+          host_name               host-web
+          alias                   Servidor Web Apache
+          address                 192.168.56.20
+          max_check_attempts      5
+          check_period            24x7
+          notification_interval   30
+          notification_period     24x7
+      }
+
+      define service {
+          use                     generic-service
+          host_name               host-web
+          service_description     Carga CPU
+          check_command           check_nrpe!check_load
+      }
+
+      define service {
+          use                     generic-service
+          host_name               host-web
+          service_description     Espacio en Disco /
+          check_command           check_nrpe!check_hda1
+      }
+      define service {
+          use                     generic-service
+          host_name               host-web
+          service_description     Servicio HTTP
+          check_command           check_http
+      }
+  notify: Reiniciar Nagios
+  tags: config

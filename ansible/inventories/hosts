@@ -2,7 +2,7 @@
 localhost ansible_connection=local
 
 [webservers]
-192.168.56.20
+host-web ansible_host=192.168.56.20
 
 [todos:children]
 controlador

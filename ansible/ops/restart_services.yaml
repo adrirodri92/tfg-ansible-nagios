@@ -1,0 +1,16 @@
+---
+- name: Reinicio de Servicios Críticos
+  hosts: all
+  become: yes
+  tasks:
+    - name: Reiniciar Apache (Solo en servidores web)
+      service:
+        name: apache2
+        state: restarted
+      when: "'webservers' in group_names"
+
+    - name: Reiniciar Nagios Core (Solo en controlador)
+      service:
+        name: nagios
+        state: restarted
+      when: "'controlador' in group_names"
