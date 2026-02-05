@@ -10,7 +10,7 @@
     update_cache: yes
 
 - name: 2. Configurar 'allowed_hosts' (Seguridad Crítica)
-  # Esto cumple el requisito de seguridad del profesor: solo el servidor Nagios puede preguntar via NRPE
+  # Solo el servidor Nagios puede preguntar via NRPE
   lineinfile:
     path: /etc/nagios/nrpe.cfg
     regexp: '^allowed_hosts='
