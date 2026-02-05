@@ -6,7 +6,7 @@
     name: apache2
     state: restarted
 
-- name: Reiniciar Nagios     <-- ESTE ES EL QUE FALTA
+- name: Reiniciar Nagios
   service:
     name: nagios
     state: restarted
